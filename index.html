@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>エンタメ鑑賞ログ</title>
+
+  <!-- JavaScript関数を最優先で一番上に配置（読み込み順のエラーを完全に防止） -->
+  <script>
+    function toggleForm() {
+      var f = document.getElementById('form-container');
+      var btn = document.getElementById('btn-toggle-form');
+      if (!f) return;
+
+      var isHidden = f.style.display === 'none' || f.style.display === '';
+      f.style.display = isHidden ? 'block' : 'none';
+      if (btn) btn.innerText = isHidden ? '✕ 閉じる' : '＋ 新規記録';
+      
+      if (isHidden) {
+        var inpDate = document.getElementById('inp-date');
+        if (inpDate && typeof todayStr !== 'undefined') inpDate.value = todayStr;
+      } else {
+        if (typeof resetForm === 'function') resetForm();
+      }
+    }
+
+    function switchTab(tab) {
+      var vHome = document.getElementById('view-home');
+      var vList = document.getElementById('view-list');
+      var nHome = document.getElementById('nav-home');
+      var nList = document.getElementById('nav-list');
+      
+      if (vHome) vHome.style.display = tab === 'home' ? 'block' : 'none';
+      if (vList) vList.style.display = tab === 'list' ? 'block' : 'none';
+      if (nHome) nHome.className = 'nav-btn ' + (tab === 'home' ? 'active' : '');
+      if (nList) nList.className = 'nav-btn ' + (tab === 'list' ? 'active' : '');
+      window.scrollTo(0, 0);
+    }
+
+    // 古い表記や打ち間違い（小文字・スペルミス）をすべてカバーするエイリアス設定
+    window.toggleform = toggleForm;
+    window.TOGGLEFORM = toggleForm;
+    window.swichtab = switchTab;
+    window.switchtab = switchTab;
+    window.SWICHTAB = switchTab;
+  </script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: #f8fafc; color: #1e293b; padding-bottom: 75px; }
+
+    /* ヘッダー */
+    header { background: #4f46e5; color: white; padding: 12px 16px; position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
+    header h1 { font-size: 15px; font-weight: bold; letter-spacing: 0.5px; cursor: pointer; }
+    .btn-new { background: white; color: #4f46e5; font-weight: bold; padding: 6px 14px; border-radius: 20px; border: none; font-size: 12px; cursor: pointer; transition: opacity 0.2s; }
+    .btn-new:active { opacity: 0.8; }
+    
+    .container { max-width: 500px; margin: 0 auto; padding: 12px; }
+    .card { background: white; border-radius: 12px; padding: 14px; border: 1px solid #e2e8f0; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    
+    /* 通知設定バナー */
+    .notif-banner { background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #3730a3; }
+    .btn-notif { background: #4f46e5; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 11px; cursor: pointer; }
+
+    /* ヒーローカード & 月次レポート */
+    .hero { background: linear-gradient(135deg, #6366f1, #9333ea); color: white; border: none; }
+    .hero-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; text-align: center; }
+    .hero-box { background: rgba(255,255,255,0.15); padding: 10px; border-radius: 8px; backdrop-filter: blur(4px); }
+    
+    .report-card { background: linear-gradient(135deg, #059669, #10b981); color: white; border: none; }
+    .report-stat { background: rgba(255,255,255,0.2); padding: 8px; border-radius: 6px; margin-top: 6px; font-size: 12px; }
+
+    /* 検索・絞り込みエリア */
+    .filter-box { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; background: #f1f5f9; padding: 10px; border-radius: 10px; }
+    .filter-row { display: flex; gap: 8px; align-items: center; }
+    .filter-label { font-size: 11px; font-weight: bold; color: #475569; white-space: nowrap; }
+    .filter-info { font-size: 11px; color: #4f46e5; font-weight: bold; margin-bottom: 8px; background: #eef2ff; padding: 6px 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
+    .btn-clear { padding: 6px 10px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; font-weight: bold; color: #475569; cursor: pointer; white-space: nowrap; }
+    
+    /* リストアイテム */
+    .list-item { display: flex; gap: 12px; align-items: center; border-radius: 12px; padding: 12px; background: white; border: 1px solid #e2e8f0; margin-bottom: 10px; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; }
+    .list-item:active { transform: scale(0.99); }
+    .thumb { width: 52px; height: 72px; object-fit: cover; border-radius: 6px; background: #e2e8f0; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #64748b; }
+    .badge { background: #e0e7ff; color: #3730a3; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; }
+    .star { color: #f59e0b; font-weight: bold; font-size: 13px; }
+    .tag { background: #e2e8f0; color: #475569; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-right: 4px; display: inline-block; margin-top: 4px; }
+    .tag-custom { background: #fef3c7; color: #92400e; }
+
+    .action-btns { display: flex; gap: 8px; margin-top: 8px; }
+    .btn-edit { background: #f1f5f9; color: #4f46e5; border: 1px solid #cbd5e1; padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; }
+    .btn-delete { background: #fff1f2; color: #e11d48; border: 1px solid #fecdd3; padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; }
+    
+    .btn-fetch { background: #3b82f6; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-size: 11px; font-weight: bold; margin-top: 8px; width: 100%; cursor: pointer; }
+    .btn-fetch:disabled { background: #94a3b8; }
+    
+    form label { font-size: 11px; font-weight: bold; color: #64748b; display: block; margin-top: 10px; margin-bottom: 4px; }
+    input[type="text"], input[type="date"], input[type="month"], textarea, select { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; background: #fff; }
+    .range-group { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; }
+    .range-group input[type="range"] { flex: 1; height: 20px; }
+    .btn-submit { width: 100%; background: #4f46e5; color: white; font-weight: bold; padding: 10px; border-radius: 8px; border: none; margin-top: 14px; font-size: 13px; cursor: pointer; }
+    
+    /* ナビゲーション */
+    nav { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #e2e8f0; display: flex; justify-around: space-around; padding: 6px 0; max-width: 500px; margin: 0 auto; z-index: 10; }
+    .nav-btn { border: none; background: none; font-size: 11px; font-weight: bold; color: #94a3b8; text-align: center; flex: 1; padding: 4px 0; cursor: pointer; }
+    .nav-btn.active { color: #4f46e5; }
+    
+    /* モーダル */
+    .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+    .modal-content { background: white; border-radius: 16px; max-width: 450px; width: 100%; max-height: 85vh; overflow-y: auto; padding: 16px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1 onclick="switchTab('home')">🎬 エンタメ鑑賞ログ</h1>
+    <button class="btn-new" id="btn-toggle-form" onclick="toggleForm()">＋ 新規記録</button>
+  </header>
+
+  <div class="container">
+    <!-- 通知許可の案内バナー -->
+    <div id="notif-banner" class="notif-banner" style="display:none;">
+      <span>🔔 毎月の鑑賞レポート通知を受け取りますか？</span>
+      <button class="btn-notif" onclick="requestNotificationPermission()">許可する</button>
+    </div>
+
+    <!-- 入力フォーム -->
+    <form id="form-container" class="card" style="display:none;" onsubmit="handleFormSubmit(event)">
+      <h3 id="form-title" style="font-size:13px; color:#4f46e5; border-bottom:1px solid #eee; padding-bottom:6px;">＋ 新規記録登録</h3>
+      <input type="hidden" id="edit-id">
+      
+      <label>鑑賞日（年月日）</label>
+      <input type="date" id="inp-date" required>
+
+      <label>作品タイトル</label>
+      <input type="text" id="inp-title" required placeholder="作品名を入力 (例: インターステラー)">
+      <button type="button" class="btn-fetch" id="btn-fetch-api" onclick="fetchMetadata()">🔍 ネットから画像・あらすじを取得</button>
+
+      <label>媒体</label>
+      <select id="inp-media">
+        <option value="映画">映画</option>
+        <option value="ドラマ">ドラマ</option>
+        <option value="アニメ">アニメ</option>
+        <option value="漫画">漫画</option>
+        <option value="本">本</option>
+        <option value="演劇">演劇</option>
+        <option value="その他">その他</option>
+      </select>
+
+      <label>ジャンル</label>
+      <select id="inp-genre">
+        <option value="SF">SF</option>
+        <option value="サスペンス">サスペンス / ミステリー</option>
+        <option value="アクション">アクション / 冒険</option>
+        <option value="ドラマ">ドラマ / 人間ドラマ</option>
+        <option value="恋愛">恋愛 / ラブコメ</option>
+        <option value="コメディ">コメディ / ギャグ</option>
+        <option value="ファンタジー">ファンタジー</option>
+        <option value="ホラー">ホラー / スリラー</option>
+        <option value="ドキュメンタリー">ドキュメンタリー</option>
+        <option value="歴史">歴史 / 時代劇</option>
+        <option value="日常">日常 / ほのぼの</option>
+        <option value="その他">その他</option>
+      </select>
+
+      <label>キーワードタグ（カンマ区切りで複数入力可）</label>
+      <input type="text" id="inp-tags" placeholder="例: 泣ける, どんでん返し, 映画館鑑賞">
+
+      <label>画像URL</label>
+      <input type="text" id="inp-thumb" placeholder="https://...">
+
+      <label>あらすじ</label>
+      <textarea id="inp-synopsis" rows="3" placeholder="あらすじ"></textarea>
+
+      <label>評価設定 (1〜5)</label>
+      <div class="range-group"><span>ストーリー:</span><input type="range" min="1" max="5" id="r-story" value="4" oninput="updateVal('story', this.value)"><span id="v-story">4</span></div>
+      <div class="range-group"><span>キャラ:</span><input type="range" min="1" max="5" id="r-char" value="4" oninput="updateVal('char', this.value)"><span id="v-char">4</span></div>
+      <div class="range-group"><span>視覚:</span><input type="range" min="1" max="5" id="r-visual" value="4" oninput="updateVal('visual', this.value)"><span id="v-visual">4</span></div>
+      <div class="range-group"><span>エンタメ:</span><input type="range" min="1" max="5" id="r-ent" value="4" oninput="updateVal('ent', this.value)"><span id="v-ent">4</span></div>
+      <div class="range-group">
+        <input type="text" id="r-custom-name" value="自由項目" style="width:70px; padding:2px;">
+        <input type="range" min="1" max="5" id="r-custom" value="4" oninput="updateVal('custom', this.value)"><span id="v-custom">4</span>
+      </div>
+
+      <label>一言コメント</label>
+      <textarea id="inp-comment" rows="2" placeholder="感想・メモなど"></textarea>
+
+      <button type="submit" id="btn-submit-text" class="btn-submit">保存する</button>
+    </form>
+
+    <!-- ホーム画面 -->
+    <div id="view-home">
+      <div class="card hero">
+        <div style="font-size:11px; font-weight:bold; opacity:0.9;">📊 通算アクティビティ</div>
+        <div class="hero-grid">
+          <div class="hero-box"><div style="font-size:9px; opacity:0.8;">総記録数</div><div id="total-count" style="font-size:18px; font-weight:bold;">0 作品</div></div>
+          <div class="hero-box"><div style="font-size:9px; opacity:0.8;">平均評価</div><div id="total-avg" style="font-size:18px; font-weight:bold;">★ 0.0</div></div>
+        </div>
+      </div>
+
+      <!-- 今月の振り返りレポート -->
+      <div class="card report-card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-size:12px; font-weight:bold;">💡 今月の鑑賞レポート</div>
+          <input type="month" id="report-month-picker" style="width:auto; padding:2px 6px; font-size:10px; color:#1e293b;" onchange="renderReport()">
+        </div>
+        <div id="report-content" style="margin-top:8px;"></div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <span style="font-weight:bold; font-size:12px; color:#475569;">最近の記録</span>
+        <span onclick="switchTab('list')" style="color:#4f46e5; font-size:11px; font-weight:bold; cursor:pointer;">すべて見る ＞</span>
+      </div>
+      <div id="home-recent-list"></div>
+    </div>
+
+    <!-- 作品一覧画面 -->
+    <div id="view-list" style="display:none;">
+      <div style="font-weight:bold; font-size:13px; color:#475569; margin-bottom:8px;">📚 鑑賞記録ライブラリ</div>
+      
+      <!-- 検索・絞り込みエリア -->
+      <div class="filter-box">
+        <div class="filter-row">
+          <span class="filter-label">📅 日付指定:</span>
+          <input type="date" id="filter-date" onchange="renderList()">
+          <button class="btn-clear" onclick="resetDateFilter()">クリア</button>
+        </div>
+        <div class="filter-row">
+          <span class="filter-label">🔍 検索:</span>
+          <input type="text" id="filter-keyword" oninput="renderList()" placeholder="タイトル・タグ・ジャンル">
+        </div>
+      </div>
+
+      <!-- 絞り込み状態インジケーター -->
+      <div id="filter-info" class="filter-info" style="display:none;">
+        <span id="filter-info-text"></span>
+        <span style="cursor:pointer; text-decoration:underline;" onclick="resetAllFilters()">条件を全解除</span>
+      </div>
+
+      <div id="full-list"></div>
+    </div>
+  </div>
+
+  <!-- 詳細モーダル -->
+  <div id="modal" class="modal" onclick="closeModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <div style="display:flex; justify-content:space-between; align-items:start;">
+        <div>
+          <span id="m-media" class="badge"></span>
+          <span id="m-date" style="font-size:10px; color:#64748b; margin-left:6px;"></span>
+          <h2 id="m-title" style="font-size:15px; font-weight:bold; margin-top:4px;"></h2>
+        </div>
+        <button onclick="closeModal()" style="border:none; background:none; font-size:16px; padding:4px; cursor:pointer; color:#64748b;">✕</button>
+      </div>
+      <div style="display:flex; gap:12px; margin-top:12px;">
+        <img id="m-thumb" class="thumb" src="" alt="NO IMAGE" onerror="this.src=''; this.alt='NO IMAGE';">
+        <div>
+          <div id="m-avg" class="star" style="font-size:16px;"></div>
+          <div id="m-scores" style="font-size:11px; color:#64748b; margin-top:4px; line-height:1.4;"></div>
+        </div>
+      </div>
+      <div id="m-tags-container" style="margin-top:8px;"></div>
+      <div style="margin-top:10px; font-size:12px;">
+        <strong style="color:#94a3b8; font-size:10px;">あらすじ</strong>
+        <p id="m-synopsis" style="background:#f8fafc; padding:8px; border-radius:6px; margin-top:2px; font-size:11px; color:#334155;"></p>
+      </div>
+      <div style="margin-top:8px; font-size:12px;">
+        <strong style="color:#4f46e5; font-size:10px;">💬 一言コメント</strong>
+        <p id="m-comment" style="background:#f0f3ff; padding:8px; border-radius:6px; margin-top:2px; font-size:11px; color:#334155;"></p>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:14px;">
+        <button id="m-btn-edit" class="btn-submit" style="margin-top:0; background:#f1f5f9; color:#4f46e5;">✏️ 編集する</button>
+        <button onclick="closeModal()" style="padding:8px 14px; background:#e2e8f0; border:none; border-radius:8px; font-weight:bold; font-size:11px; cursor:pointer;">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ナビゲーションバー -->
+  <nav>
+    <button id="nav-home" class="nav-btn active" onclick="switchTab('home')">🏠<br>ホーム</button>
+    <button id="nav-list" class="nav-btn" onclick="switchTab('list')">📚<br>作品一覧</button>
+  </nav>
+
+  <!-- 残りの処理スクリプト -->
+  <script>
+    // デフォルトの初期サンプルデータ
+    var INITIAL_LOGS = [{
+      id: '1', title: 'インターステラー', media: '映画', genre: 'SF',
+      tags: ['宇宙', '感動', '名作'],
+      thumbnail: '',
+      synopsis: '地球の寿命が尽きかけている近未来。人類の生き残りを賭けたミッションに挑む宇宙飛行士たちの姿を描く。',
+      scores: { story: 5, character: 4, visual: 5, entertainment: 4, customName: '伏線回収', customScore: 5 },
+      comment: '映像美と親子の絆に感動。ラストの伏線回収が見事！', createdAt: '2026-09-20'
+    }];
+
+    var logs = [];
+    try {
+      var stored = localStorage.getItem('entertainment_logs_v16');
+      logs = stored ? JSON.parse(stored) : INITIAL_LOGS;
+    } catch(e) {
+      logs = INITIAL_LOGS;
+    }
+
+    var now = new Date();
+    var todayStr = now.toISOString().split('T')[0];
+    var currentMonthStr = todayStr.substring(0, 7);
+
+    function resetForm() {
+      var editId = document.getElementById('edit-id');
+      var formTitle = document.getElementById('form-title');
+      var btnSubmit = document.getElementById('btn-submit-text');
+      var form = document.getElementById('form-container');
+      var inpDate = document.getElementById('inp-date');
+
+      if (editId) editId.value = '';
+      if (formTitle) formTitle.innerText = '＋ 新規記録登録';
+      if (btnSubmit) btnSubmit.innerText = '保存する';
+      if (form) form.reset();
+      if (inpDate) inpDate.value = todayStr;
+
+      ['story','char','visual','ent','custom'].forEach(function(k) { 
+        var target = document.getElementById('v-' + k);
+        if (target) target.innerText = '4';
+      });
+    }
+
+    function saveToStorage() {
+      try {
+        localStorage.setItem('entertainment_logs_v16', JSON.stringify(logs));
+      } catch(e) {}
+      render();
+    }
+
+    function calcAvg(s) {
+      if (!s) return '0.0';
+      var sum = Number(s.story||0) + Number(s.character||0) + Number(s.visual||0) + Number(s.entertainment||0) + Number(s.customScore||0);
+      return (sum / 5).toFixed(1);
+    }
+
+    function updateVal(key, val) {
+      var el = document.getElementById('v-' + key);
+      if (el) el.innerText = val;
+    }
+
+    async function fetchMetadata() {
+      var title = document.getElementById('inp-title').value.trim();
+      var media = document.getElementById('inp-media').value;
+      var btn = document.getElementById('btn-fetch-api');
+
+      if (!title) { alert('先に作品タイトルを入力してください！'); return; }
+
+      btn.disabled = true;
+      btn.innerText = '⏳ 取得中...';
+
+      try {
+        var found = false;
+
+        if (media === '本' || media === '漫画') {
+          var res = await fetch('https://www.googleapis.com/books/v1/volumes?q=' + encodeURIComponent(title));
+          var data = await res.json();
+          if (data.items && data.items.length > 0) {
+            var info = data.items[0].volumeInfo;
+            if (info.imageLinks && info.imageLinks.thumbnail) {
+              document.getElementById('inp-thumb').value = info.imageLinks.thumbnail.replace('http:', 'https:');
+            }
+            if (info.description) document.getElementById('inp-synopsis').value = info.description;
+            found = true;
+          }
+        }
+
+        if (!found) {
+          var res2 = await fetch('https://itunes.apple.com/search?term=' + encodeURIComponent(title) + '&country=jp&limit=1');
+          var data2 = await res2.json();
+          if (data2.results && data2.results.length > 0) {
+            var item = data2.results[0];
+            if (item.artworkUrl100) {
+              document.getElementById('inp-thumb').value = item.artworkUrl100.replace('100x100bb', '160x160bb');
+            }
+            if (item.longDescription || item.shortDescription) {
+              document.getElementById('inp-synopsis').value = item.longDescription || item.shortDescription;
+            }
+            found = true;
+          }
+        }
+
+        if (found) alert('取得完了しました！');
+        else alert('該当する情報が見つかりませんでした。手動で入力できます。');
+      } catch (err) {
+        alert('取得に失敗しました。');
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '🔍 ネットから画像・あらすじを取得';
+      }
+    }
+
+    function editLog(id, evt) {
+      if (evt) evt.stopPropagation();
+      var log = logs.find(function(l) { return l.id === id; });
+      if (!log) return;
+
+      document.getEl
