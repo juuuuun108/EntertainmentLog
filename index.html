@@ -392,9 +392,225 @@
       }
     }
 
+        // ===== 途切れている「function editLog ... document.getEl」以降を全部消して、ここから下を貼り付け =====
+    var SCORE_MAP = [['story','story'], ['char','character'], ['visual','visual'], ['ent','entertainment'], ['custom','customScore']];
+
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+      });
+    }
+
+    // 保存（失敗したらアラートで理由を表示）
+    function persist() {
+      try {
+        localStorage.setItem('entertainment_logs_v16', JSON.stringify(logs));
+        return true;
+      } catch (e) {
+        alert('保存に失敗しました: ' + e.message);
+        return false;
+      }
+    }
+
     function editLog(id, evt) {
       if (evt) evt.stopPropagation();
       var log = logs.find(function(l) { return l.id === id; });
       if (!log) return;
+      closeModal();
+      document.getElementById('form-container').style.display = 'block';
+      document.getElementById('btn-toggle-form').innerText = '✕ 閉じる';
+      document.getElementById('edit-id').value = log.id;
+      document.getElementById('form-title').innerText = '✏️ 記録を編集';
+      document.getElementById('btn-submit-text').innerText = '更新する';
+      document.getElementById('inp-date').value = log.createdAt || todayStr;
+      document.getElementById('inp-title').value = log.title || '';
+      document.getElementById('inp-media').value = log.media || 'その他';
+      document.getElementById('inp-genre').value = log.genre || 'その他';
+      document.getElementById('inp-tags').value = (log.tags || []).join(', ');
+      document.getElementById('inp-thumb').value = log.thumbnail || '';
+      document.getElementById('inp-synopsis').value = log.synopsis || '';
+      document.getElementById('inp-comment').value = log.comment || '';
+      var s = log.scores || {};
+      SCORE_MAP.forEach(function(p) {
+        var v = s[p[1]] || 4;
+        document.getElementById('r-' + p[0]).value = v;
+        document.getElementById('v-' + p[0]).innerText = v;
+      });
+      document.getElementById('r-custom-name').value = s.customName || '自由項目';
+      window.scrollTo(0, 0);
+    }
 
-      document.getEl
+    function handleFormSubmit(e) {
+      e.preventDefault();
+      var editId = document.getElementById('edit-id').value;
+      var scores = {};
+      SCORE_MAP.forEach(function(p) {
+        scores[p[1]] = Number(document.getElementById('r-' + p[0]).value);
+      });
+      scores.customName = document.getElementById('r-custom-name').value.trim() || '自由項目';
+
+      var data = {
+        id: editId || String(Date.now()),
+        title: document.getElementById('inp-title').value.trim(),
+        media: document.getElementById('inp-media').value,
+        genre: document.getElementById('inp-genre').value,
+        tags: document.getElementById('inp-tags').value.split(/[,、，]/).map(function(t) { return t.trim(); }).filter(Boolean),
+        thumbnail: document.getElementById('inp-thumb').value.trim(),
+        synopsis: document.getElementById('inp-synopsis').value.trim(),
+        scores: scores,
+        comment: document.getElementById('inp-comment').value.trim(),
+        createdAt: document.getElementById('inp-date').value || todayStr
+      };
+
+      var idx = editId ? logs.findIndex(function(l) { return l.id === editId; }) : -1;
+      if (idx >= 0) logs[idx] = data; else logs.unshift(data);
+
+      if (persist()) toggleForm(); // フォームを閉じてリセット
+      render();
+    }
+
+    function deleteLog(id, evt) {
+      if (evt) evt.stopPropagation();
+      if (!confirm('この記録を削除しますか？')) return;
+      logs = logs.filter(function(l) { return l.id !== id; });
+      persist();
+      render();
+    }
+
+    function sortedLogs() {
+      return logs.slice().sort(function(a, b) { return (b.createdAt || '').localeCompare(a.createdAt || ''); });
+    }
+
+    function itemHTML(l) {
+      var thumb = l.thumbnail
+        ? '<img class="thumb" src="' + esc(l.thumbnail) + '" alt="" onerror="this.style.visibility=\'hidden\'">'
+        : '<div class="thumb">NO IMAGE</div>';
+      var tags = (l.tags || []).map(function(t) { return '<span class="tag">' + esc(t) + '</span>'; }).join('');
+      return '<div class="list-item" onclick="openModal(\'' + l.id + '\')">' + thumb +
+        '<div style="flex:1;min-width:0;">' +
+        '<span class="badge">' + esc(l.media) + '</span> <span style="font-size:10px;color:#64748b;">' + esc(l.createdAt) + '</span>' +
+        '<div style="font-weight:bold;font-size:13px;margin-top:2px;">' + esc(l.title) + '</div>' +
+        '<div class="star">★ ' + calcAvg(l.scores) + '</div>' + tags +
+        '<div class="action-btns">' +
+        '<button class="btn-edit" onclick="editLog(\'' + l.id + '\', event)">✏️ 編集</button>' +
+        '<button class="btn-delete" onclick="deleteLog(\'' + l.id + '\', event)">🗑 削除</button>' +
+        '</div></div></div>';
+    }
+
+    function renderHome() {
+      document.getElementById('total-count').innerText = logs.length + ' 作品';
+      var avg = logs.length
+        ? (logs.reduce(function(sum, l) { return sum + Number(calcAvg(l.scores)); }, 0) / logs.length).toFixed(1)
+        : '0.0';
+      document.getElementById('total-avg').innerText = '★ ' + avg;
+      var recent = sortedLogs().slice(0, 3);
+      document.getElementById('home-recent-list').innerHTML = recent.length
+        ? recent.map(itemHTML).join('')
+        : '<div style="font-size:11px;color:#94a3b8;text-align:center;padding:16px;">まだ記録がありません</div>';
+    }
+
+    function renderReport() {
+      var month = document.getElementById('report-month-picker').value || currentMonthStr;
+      var list = logs.filter(function(l) { return (l.createdAt || '').substring(0, 7) === month; });
+      var box = document.getElementById('report-content');
+      if (!list.length) {
+        box.innerHTML = '<div class="report-stat">この月の記録はまだありません</div>';
+        return;
+      }
+      var sum = 0, best = list[0], mediaCount = {};
+      list.forEach(function(l) {
+        var a = Number(calcAvg(l.scores));
+        sum += a;
+        if (a > Number(calcAvg(best.scores))) best = l;
+        mediaCount[l.media] = (mediaCount[l.media] || 0) + 1;
+      });
+      var topMedia = Object.keys(mediaCount).sort(function(a, b) { return mediaCount[b] - mediaCount[a]; })[0];
+      box.innerHTML =
+        '<div class="report-stat">鑑賞数: ' + list.length + ' 作品 / 平均 ★ ' + (sum / list.length).toFixed(1) + '</div>' +
+        '<div class="report-stat">一番多い媒体: ' + esc(topMedia) + '（' + mediaCount[topMedia] + '件）</div>' +
+        '<div class="report-stat">🏆 最高評価: ' + esc(best.title) + '（★' + calcAvg(best.scores) + '）</div>';
+    }
+
+    function renderList() {
+      var date = document.getElementById('filter-date').value;
+      var kw = document.getElementById('filter-keyword').value.trim().toLowerCase();
+      var list = sortedLogs().filter(function(l) {
+        if (date && l.createdAt !== date) return false;
+        if (kw) {
+          var hay = (l.title + ' ' + l.genre + ' ' + l.media + ' ' + (l.tags || []).join(' ')).toLowerCase();
+          if (hay.indexOf(kw) === -1) return false;
+        }
+        return true;
+      });
+      var info = document.getElementById('filter-info');
+      if (date || kw) {
+        info.style.display = 'flex';
+        document.getElementById('filter-info-text').innerText = list.length + ' 件が該当';
+      } else {
+        info.style.display = 'none';
+      }
+      document.getElementById('full-list').innerHTML = list.length
+        ? list.map(itemHTML).join('')
+        : '<div style="font-size:11px;color:#94a3b8;text-align:center;padding:16px;">該当する記録がありません</div>';
+    }
+
+    function resetDateFilter() {
+      document.getElementById('filter-date').value = '';
+      renderList();
+    }
+
+    function resetAllFilters() {
+      document.getElementById('filter-date').value = '';
+      document.getElementById('filter-keyword').value = '';
+      renderList();
+    }
+
+    function openModal(id) {
+      var l = logs.find(function(x) { return x.id === id; });
+      if (!l) return;
+      var s = l.scores || {};
+      document.getElementById('m-media').innerText = l.media || '';
+      document.getElementById('m-date').innerText = l.createdAt || '';
+      document.getElementById('m-title').innerText = l.title || '';
+      document.getElementById('m-thumb').src = l.thumbnail || '';
+      document.getElementById('m-avg').innerText = '★ ' + calcAvg(s);
+      document.getElementById('m-scores').innerHTML =
+        'ストーリー: ' + (s.story || 0) + ' / キャラ: ' + (s.character || 0) + '<br>' +
+        '視覚: ' + (s.visual || 0) + ' / エンタメ: ' + (s.entertainment || 0) + '<br>' +
+        esc(s.customName || '自由項目') + ': ' + (s.customScore || 0);
+      document.getElementById('m-tags-container').innerHTML =
+        (l.tags || []).map(function(t) { return '<span class="tag">' + esc(t) + '</span>'; }).join('');
+      document.getElementById('m-synopsis').innerText = l.synopsis || '（あらすじなし）';
+      document.getElementById('m-comment').innerText = l.comment || '（コメントなし）';
+      document.getElementById('m-btn-edit').onclick = function() { editLog(id); };
+      document.getElementById('modal').style.display = 'flex';
+    }
+
+    function closeModal() {
+      var m = document.getElementById('modal');
+      if (m) m.style.display = 'none';
+    }
+
+    function requestNotificationPermission() {
+      if (!('Notification' in window)) return;
+      Notification.requestPermission().then(function() {
+        document.getElementById('notif-banner').style.display = 'none';
+      });
+    }
+
+    function render() {
+      renderHome();
+      renderReport();
+      renderList();
+    }
+
+    // 起動時の初期化
+    document.getElementById('report-month-picker').value = currentMonthStr;
+    if ('Notification' in window && Notification.permission === 'default') {
+      document.getElementById('notif-banner').style.display = 'flex';
+    }
+    render();
+  </script>
+</body>
+</html>
+
